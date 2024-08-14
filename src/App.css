@@ -36,3 +36,33 @@
     transform: rotate(360deg);
   }
 }
+
+.inputParams {
+  position: absolute;
+  top: 2%;
+  left: 5%;
+  z-index: 100;
+}
+input,
+button {
+  outline: none;
+  border: none;
+  border-radius: 16px;
+  color: black;
+  box-shadow: 0 0 1px 1px rgb(59, 59, 59);
+  height: 25px;
+  padding: 5px 10px;
+  margin: 5px;
+  transition: box-shadow 0.2s ease-in;
+}
+button {
+  width: 100px;
+  height: 35px;
+}
+input:focus-within {
+  box-shadow: 0 0 1px 2px rgb(0, 99, 185);
+}
+button:hover {
+  box-shadow: 0 0 1px 2px rgb(0, 99, 185);
+  cursor: pointer;
+}
