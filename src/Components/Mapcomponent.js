@@ -4,7 +4,6 @@ import L from "leaflet";
 import car from "../../src/images/car.png";
 import { v4 as uuidv4 } from "uuid";
 import polyline from "polyline";
-const apiKey = "OrCH8o2aDx0mJkv0PzgSLiPMzMAgNqyhblmHWFSa";
 
 const MapComponent = () => {
     const mapRef = useRef(null);
@@ -13,12 +12,12 @@ const MapComponent = () => {
     const [polylineString, setString] = useState("");
     const [latlngs, setDecodedPolyline] = useState([]);
     const [inputValues, setInputValues] = useState({});
-    const [origin, setOrigin] = useState("");
-    const [destination, setDestination] = useState(
-        ""
-    );
-    const [startLat, setStartLat] = useState();
-    const [startLng, setStartLng] = useState();
+    const [origin, setOrigin] = useState([]);
+    const [Destination, setDestination] = useState([]);
+    const [coordsLoaded, setCoordsStatus] = useState("false")
+    const [shouldFetchRoute, setShouldFetchRoute] = useState(false);
+    const DEFAULT_LOCATION = [15.36457598719019, 75.10291078571753];
+    const DEFAULT_ZOOM = 13;
     const handleChange = (e) => {
         const { name, value } = e.target;
         setInputValues({
@@ -26,18 +25,22 @@ const MapComponent = () => {
             [name]: value,
         });
     };
-    const handleSearch = () => {
-        setOrigin(inputValues.origin);
-        setDestination(inputValues.destination);
-        console.log(origin, destination);
-        geocodeLocation(origin, apiKey, uuidv4());
+    const handleSearch = async () => {
+        console.log(inputValues);
+        const originCoords = await geocodeLocation(inputValues.origin, "OrCH8o2aDx0mJkv0PzgSLiPMzMAgNqyhblmHWFSa", uuidv4());
+        const destCoords = await geocodeLocation(inputValues.destination, "OrCH8o2aDx0mJkv0PzgSLiPMzMAgNqyhblmHWFSa", uuidv4());
+
+        if (originCoords && destCoords) {
+            setOrigin(originCoords);
+            setDestination(destCoords);
+            setShouldFetchRoute(true);
+        } else {
+            console.error("Failed to geocode one or both locations");
+        }
     };
+
     const geocodeLocation = async (location, apiKey, requestId) => {
-
-        const bounds = '12.910000,77.610000|12.900000,77.600000';
-        const language = 'hi';
-
-        const url = `https://api.olamaps.io/places/v1/geocode?address=${location}&language=${language}&api_key=${apiKey}`;
+        const url = `https://api.olamaps.io/places/v1/geocode?address=${location}&language=hi&api_key=${apiKey}`;
 
         try {
             const response = await fetch(url, {
@@ -48,23 +51,31 @@ const MapComponent = () => {
             });
 
             if (!response.ok) {
-                throw new Error(`Error: ${response.status} - ${response.statusText}`);
+                throw new Error(`Failed to fetch coordinates: ${response.status} ${response.statusText}`);
             }
 
             const data = await response.json();
-            console.log(data.geocodingResults[0].geometry.location.lat)
-            return data;
-        } catch (error) {
-            console.error('Failed to fetch geocode data:', error);
-        }
-    }
 
+            if (data.geocodingResults && data.geocodingResults.length > 0) {
+                const lat = data.geocodingResults[0].geometry.location.lat;
+                const lng = data.geocodingResults[0].geometry.location.lng;
+                return [lat, lng];
+            } else {
+                throw new Error("No geocoding results found for location: " + location);
+            }
+        } catch (error) {
+            console.error(error);
+            return null;
+        }
+    };
 
     const fetchRoute = async () => {
+        console.log("inside fetch route");
+        const apiKey = "OrCH8o2aDx0mJkv0PzgSLiPMzMAgNqyhblmHWFSa";
         const requestId = uuidv4();
 
         const response = await fetch(
-            `https://api.olamaps.io/routing/v1/directions?origin=${origin}&destination=${destination}&api_key=${apiKey}`,
+            `https://api.olamaps.io/routing/v1/directions?origin=${origin}&destination=${Destination}&api_key=${apiKey}`,
             {
                 method: "POST",
                 headers: {
@@ -75,8 +86,10 @@ const MapComponent = () => {
         if (response.ok) {
             const data = await response.json();
             if (data.routes && data.routes[0]) {
-                setString(data.routes[0].overview_polyline);
-                setDecodedPolyline(polyline.decode(polylineString));
+                const newPolylineString = data.routes[0].overview_polyline;
+                setString(newPolylineString);
+                const newLatLngs = polyline.decode(newPolylineString);
+                setDecodedPolyline(newLatLngs);
             }
         } else {
             console.error(
@@ -86,13 +99,18 @@ const MapComponent = () => {
             );
         }
     };
+    useEffect(() => {
+        if (shouldFetchRoute && origin.length > 0 && Destination.length > 0) {
+            fetchRoute();
+            setShouldFetchRoute(false);
+        }
+    }, [shouldFetchRoute, origin, Destination]);
 
     useEffect(() => {
-        fetchRoute();
-    }, []);
-
-    useEffect(() => {
-        if (latlngs.length === 0) return;
+        if (latlngs.length === 0) {
+            setCoordsStatus("true");
+            return;
+        }
 
         const carIcon = L.icon({
             iconUrl: car,
@@ -101,22 +119,17 @@ const MapComponent = () => {
             popupAnchor: [-3, -76],
         });
 
-        if (!mapRef.current) {
-            mapRef.current = L.map("map").setView(latlngs[0], 15);
-
-            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                attribution:
-                    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            }).addTo(mapRef.current);
-
-            markerRef.current = L.marker(latlngs[0], { icon: carIcon }).addTo(
-                mapRef.current
-            );
-
-            polylineRef.current = L.polyline([latlngs[0]], { color: "blue" }).addTo(
-                mapRef.current
-            );
+        if (markerRef.current) {
+            markerRef.current.remove();
         }
+        if (polylineRef.current) {
+            polylineRef.current.remove();
+        }
+
+        mapRef.current.setView(latlngs[0], 15);
+
+        markerRef.current = L.marker(latlngs[0], { icon: carIcon }).addTo(mapRef.current);
+        polylineRef.current = L.polyline([latlngs[0]], { color: "blue" }).addTo(mapRef.current);
 
         let index = 0;
         const moveMarker = () => {
@@ -129,16 +142,38 @@ const MapComponent = () => {
             }
         };
 
-        const interval = setInterval(moveMarker, 50);
+        const interval = setInterval(moveMarker, 1);
 
         return () => {
             clearInterval(interval);
+            if (markerRef.current) {
+                markerRef.current.remove();
+                markerRef.current = null;
+            }
+            if (polylineRef.current) {
+                polylineRef.current.remove();
+                polylineRef.current = null;
+            }
+        };
+    }, [latlngs]);
+    useEffect(() => {
+
+        if (!mapRef.current) {
+            mapRef.current = L.map("map").setView(DEFAULT_LOCATION, DEFAULT_ZOOM);
+
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                attribution:
+                    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            }).addTo(mapRef.current);
+        }
+
+        return () => {
             if (mapRef.current) {
                 mapRef.current.remove();
                 mapRef.current = null;
             }
         };
-    }, [latlngs]);
+    }, []);
 
     return (
         <div>
