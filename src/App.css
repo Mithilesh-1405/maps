@@ -45,7 +45,7 @@
 }
 input,
 button {
-  box-shadow: 0 0 1px 1px rgb(50, 121, 183);
+  box-shadow: 0 0 1px 2px rgb(42, 117, 184);
   outline: none;
   border: none;
   border-radius: 6px;
@@ -53,8 +53,11 @@ button {
   height: 25px;
   padding: 5px 10px;
   margin: 5px;
-  transition: box-shadow 0.2s ease-in;
   width: 310px;
+}
+input {
+  font-size: 18px;
+  transition: box-shadow 0.2s ease-in;
 }
 button {
   width: 100px;
@@ -65,11 +68,12 @@ button {
   font-weight: 500;
 }
 input:focus-within {
-  box-shadow: 0 0 1px 2px rgb(0, 99, 185);
+  box-shadow: 0 0 1px 3px rgb(0, 99, 185);
 }
 button:hover {
-  box-shadow: 0 0 1px 2px rgb(0, 99, 185);
   cursor: pointer;
+  color: white;
+  background-color: #282c34;
 }
 .inputParams {
   background-color: white;
@@ -78,6 +82,7 @@ button:hover {
   box-shadow: 0 0 50px 2px rgb(216, 216, 216);
   display: flex;
   gap: 2em;
+  min-height: 5em;
 }
 .suggestions {
   list-style: none;
@@ -93,4 +98,40 @@ li {
 li:hover {
   background-color: #f0f0f0;
   cursor: pointer;
+}
+.error-message {
+  color: red;
+}
+.cancel {
+  background-color: red;
+  color: white;
+}
+.container {
+  position: relative;
+}
+.distance {
+  position: absolute;
+  left: 3%;
+  top: 60%;
+  /* text-align: top; */
+  z-index: 100;
+  color: rgb(1, 1, 1);
+  font-size: 18px;
+  font-weight: 500;
+}
+.routeDist {
+  color: #ffffff;
+  background-color: #282c34;
+  box-shadow: 0 0 2px 1px rgb(142, 142, 142);
+  border-radius: 10px;
+  padding: 5px;
+}
+@media only screen and (max-width: 1313px) {
+  .inputParams {
+    flex-direction: column;
+  }
+  .distance {
+    position: relative;
+    right: 5%;
+  }
 }

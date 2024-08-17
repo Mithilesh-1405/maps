@@ -11,7 +11,7 @@ const MapComponent = () => {
     const markerRef = useRef(null);
     const polylineRef = useRef(null);
     const [latlngs, setDecodedPolyline] = useState([]);
-
+    const [routeDistance, setRouteDistance] = useState('')
     // Input and location state
     const [inputValues, setInputValues] = useState({});
     const [origin, setOrigin] = useState([]);
@@ -20,6 +20,9 @@ const MapComponent = () => {
 
     // Control flags
     const [shouldFetchRoute, setShouldFetchRoute] = useState(false);
+    const [showCancelButton, setShowCancelButton] = useState(false);
+    const [showStartButton, setShowStartButton] = useState(false);
+    const [isMoving, setIsMoving] = useState(false);
 
     // Autocomplete suggestions
     const [originSuggestions, setOriginSuggestions] = useState([]);
@@ -87,11 +90,29 @@ const MapComponent = () => {
 
     // Initiate route search
     const handleSearch = () => {
-        setOrigin(inputValues.origin);
-        setDestination(inputValues.destination);
-        setShouldFetchRoute(true);
+        if (inputValues.origin && inputValues.destination) {
+            setOrigin(inputValues.origin);
+            setDestination(inputValues.destination);
+            setShouldFetchRoute(true);
+            setShowStartButton(true);
+            setShowCancelButton(true);
+        } else {
+            alert("Please enter both origin and destination!");
+        }
     };
+    const handleStart = () => {
+        setIsMoving(true);
+        setShowCancelButton(true);
+    };
+    const handleCancel = () => {
+        if (markerRef.current && latlngs.length > 0) {
+            markerRef.current.setLatLng(latlngs[0]);
+            mapRef.current.setView(latlngs[0], 15);
+        }
 
+        setIsMoving(false);
+        setShowStartButton(true);
+    };
     // Fetch route data from API
     const fetchRoute = async () => {
         const requestId = uuidv4();
@@ -112,6 +133,7 @@ const MapComponent = () => {
             const data = await response.json();
             if (data.routes && data.routes[0]) {
                 const newPolylineString = data.routes[0].overview_polyline;
+                setRouteDistance(data.routes[0].legs[0].distance)
                 const newLatLngs = polyline.decode(newPolylineString);
                 setDecodedPolyline(newLatLngs);
             }
@@ -122,7 +144,7 @@ const MapComponent = () => {
 
     // Effect to fetch route when search is initiated
     useEffect(() => {
-        if (shouldFetchRoute && origin.length > 0 && destination.length > 0) {
+        if (shouldFetchRoute && origin?.length > 0 && destination?.length > 0) {
             fetchRoute();
             setShouldFetchRoute(false);
         }
@@ -150,15 +172,14 @@ const MapComponent = () => {
 
         // Add new marker and polyline
         markerRef.current = L.marker(latlngs[0], { icon: carIcon }).addTo(mapRef.current);
-        polylineRef.current = L.polyline([latlngs[0]], { color: "blue" }).addTo(mapRef.current);
+        polylineRef.current = L.polyline(latlngs, { color: "blue" }).addTo(mapRef.current);
 
         let index = 0;
         const moveMarker = () => {
-            if (index < latlngs.length - 1) {
+            if (index < latlngs.length - 1 && isMoving) {
                 index++;
                 const nextLatLng = latlngs[index];
                 markerRef.current.setLatLng(nextLatLng);
-                polylineRef.current.addLatLng(nextLatLng);
                 mapRef.current.panTo(nextLatLng);
             }
         };
@@ -167,16 +188,8 @@ const MapComponent = () => {
 
         return () => {
             clearInterval(interval);
-            if (markerRef.current) {
-                markerRef.current.remove();
-                markerRef.current = null;
-            }
-            if (polylineRef.current) {
-                polylineRef.current.remove();
-                polylineRef.current = null;
-            }
         };
-    }, [latlngs]);
+    }, [latlngs, isMoving]);
 
     // Effect to initialize map
     useEffect(() => {
@@ -195,9 +208,39 @@ const MapComponent = () => {
             }
         };
     }, []);
+    const handleReset = () => {
+        // Clear input values and display names
+        setInputValues({});
+        setDisplayName({});
 
+        // Clear origin and destination
+        setOrigin([]);
+        setDestination([]);
+
+        // Clear route
+        setDecodedPolyline([]);
+
+        // Reset control flags
+        setShouldFetchRoute(false);
+        setShowStartButton(false);
+        setShowCancelButton(false);
+        setIsMoving(false);
+
+        // Clear suggestions
+        setOriginSuggestions([]);
+        setDestinationSuggestions([]);
+
+        // Remove marker and polyline from map
+        if (markerRef.current) markerRef.current.remove();
+        if (polylineRef.current) polylineRef.current.remove();
+
+        // Reset map view to default
+        if (mapRef.current) {
+            mapRef.current.setView(DEFAULT_LOCATION, DEFAULT_ZOOM);
+        }
+    };
     return (
-        <div>
+        <div className="container">
             <div id="map" style={{ height: "100vh", width: "100%", zIndex: 0 }}></div>
             <div className="inputParams">
                 <div className="input-container">
@@ -252,7 +295,28 @@ const MapComponent = () => {
                         </ul>
                     )}
                 </div>
-                <button onClick={handleSearch}>Search</button>
+                <div className="btns">
+                    <button onClick={handleSearch}>Search</button>
+                    {latlngs.length > 0 && (
+                        <>
+                            {showStartButton && (
+                                <button className="start" onClick={handleStart}>Start</button>
+                            )}
+                            {showCancelButton && (
+                                <>
+                                    <button className="cancel" onClick={handleCancel}>Cancel</button>
+                                    <button className="reset" onClick={handleReset}>Reset</button>
+                                </>
+                            )}
+                        </>
+                    )}
+                </div>
+                {latlngs.length > 0 && routeDistance && (
+                    <div className="distance">
+                        <p>Distance: <span className="routeDist">{routeDistance / 1000} km</span></p>
+                    </div>
+
+                )}
             </div>
         </div>
     );
