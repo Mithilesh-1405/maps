@@ -6,34 +6,39 @@ import { v4 as uuidv4 } from "uuid";
 import polyline from "polyline";
 
 const MapComponent = () => {
+    // Map and route related refs and state
     const mapRef = useRef(null);
     const markerRef = useRef(null);
     const polylineRef = useRef(null);
-    const [polylineString, setString] = useState("");
     const [latlngs, setDecodedPolyline] = useState([]);
+
+    // Input and location state
     const [inputValues, setInputValues] = useState({});
     const [origin, setOrigin] = useState([]);
-    const [Destination, setDestination] = useState([]);
-    const [coordsLoaded, setCoordsStatus] = useState("false");
+    const [destination, setDestination] = useState([]);
+    const [displayName, setDisplayName] = useState({});
+
+    // Control flags
     const [shouldFetchRoute, setShouldFetchRoute] = useState(false);
+
+    // Autocomplete suggestions
     const [originSuggestions, setOriginSuggestions] = useState([]);
     const [destinationSuggestions, setDestinationSuggestions] = useState([]);
+
+    // Constants
     const DEFAULT_LOCATION = [15.36457598719019, 75.10291078571753];
     const DEFAULT_ZOOM = 13;
-    const [displayName, setDisplayName] = useState({})
+    const API_KEY = "OrCH8o2aDx0mJkv0PzgSLiPMzMAgNqyhblmHWFSa";
 
+    // Fetch location suggestions for autocomplete
     const fetchSuggestions = async (input, isOrigin) => {
-        console.log("inside suggestions")
-        const apiKey = "OrCH8o2aDx0mJkv0PzgSLiPMzMAgNqyhblmHWFSa";
         const requestId = uuidv4();
 
         try {
             const response = await fetch(
-                `https://api.olamaps.io/places/v1/autocomplete?input=${input}&api_key=${apiKey}`,
+                `https://api.olamaps.io/places/v1/autocomplete?input=${input}&api_key=${API_KEY}`,
                 {
-                    headers: {
-                        'X-Request-Id': requestId,
-                    },
+                    headers: { "X-Request-Id": requestId },
                 }
             );
 
@@ -42,141 +47,90 @@ const MapComponent = () => {
             }
 
             const data = await response.json();
-            console.log(data)
-            if (isOrigin) {
-                // console.log(originSuggestions)
-                setOriginSuggestions(data.predictions || []);
-            } else {
-                setDestinationSuggestions(data.predictions || []);
-            }
+            const suggestions = data.predictions || [];
+
+            isOrigin ? setOriginSuggestions(suggestions) : setDestinationSuggestions(suggestions);
         } catch (error) {
             console.error("Error fetching suggestions:", error);
         }
     };
 
+    // Handle input change for origin and destination
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setInputValues({
-            ...inputValues,
-            [name]: value,
-        });
-        setDisplayName({
-            ...displayName,
-            [name]: value
-        })
+        setInputValues(prev => ({ ...prev, [name]: value }));
+        setDisplayName(prev => ({ ...prev, [name]: value }));
+
         if (value.length > 2) {
             fetchSuggestions(value, name === "origin");
         } else {
-            if (name === "origin") {
-                setOriginSuggestions([]);
-            } else {
-                setDestinationSuggestions([]);
-            }
+            name === "origin" ? setOriginSuggestions([]) : setDestinationSuggestions([]);
         }
     };
 
+    // Handle selection of a suggestion
     const handleSuggestionSelect = (suggestion, suggestionClicked, isOrigin) => {
-        if (isOrigin) {
-            setInputValues({
-                ...inputValues,
-                origin: [suggestion.lat, suggestion.lng],
-            });
-            setDisplayName({
-                ...displayName,
-                origin: suggestionClicked
-            })
-            setOriginSuggestions([]);
-        } else {
-            setInputValues({
-                ...inputValues,
-                destination: [suggestion.lat, suggestion.lng],
-            });
-            setDisplayName({
-                ...displayName,
-                destination: suggestionClicked
-            })
-            setDestinationSuggestions([]);
-        }
+        const newInputValues = {
+            ...inputValues,
+            [isOrigin ? "origin" : "destination"]: [suggestion.lat, suggestion.lng],
+        };
+        setInputValues(newInputValues);
+
+        const newDisplayName = {
+            ...displayName,
+            [isOrigin ? "origin" : "destination"]: suggestionClicked,
+        };
+        setDisplayName(newDisplayName);
+
+        isOrigin ? setOriginSuggestions([]) : setDestinationSuggestions([]);
     };
 
-    const handleSearch = async () => {
+    // Initiate route search
+    const handleSearch = () => {
         setOrigin(inputValues.origin);
         setDestination(inputValues.destination);
         setShouldFetchRoute(true);
-
     };
 
-    const geocodeLocation = async (location, apiKey, requestId) => {
-        const url = `https://api.olamaps.io/places/v1/geocode?address=${location}&language=hi&api_key=${apiKey}`;
-
-        try {
-            const response = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'X-Request-Id': requestId,
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to fetch coordinates: ${response.status} ${response.statusText}`);
-            }
-
-            const data = await response.json();
-
-            if (data.geocodingResults && data.geocodingResults.length > 0) {
-                const lat = data.geocodingResults[0].geometry.location.lat;
-                const lng = data.geocodingResults[0].geometry.location.lng;
-                return [lat, lng];
-            } else {
-                throw new Error("No geocoding results found for location: " + location);
-            }
-        } catch (error) {
-            console.error(error);
-            return null;
-        }
-    };
-
+    // Fetch route data from API
     const fetchRoute = async () => {
-        console.log("inside fetch route");
-        const apiKey = "OrCH8o2aDx0mJkv0PzgSLiPMzMAgNqyhblmHWFSa";
         const requestId = uuidv4();
 
-        const response = await fetch(
-            `https://api.olamaps.io/routing/v1/directions?origin=${origin}&destination=${Destination}&api_key=${apiKey}`,
-            {
-                method: "POST",
-                headers: {
-                    "X-Request-Id": requestId,
-                },
+        try {
+            const response = await fetch(
+                `https://api.olamaps.io/routing/v1/directions?origin=${origin}&destination=${destination}&api_key=${API_KEY}`,
+                {
+                    method: "POST",
+                    headers: { "X-Request-Id": requestId },
+                }
+            );
+
+            if (!response.ok) {
+                throw new Error(`Failed to fetch route: ${response.status} ${response.statusText}`);
             }
-        );
-        if (response.ok) {
+
             const data = await response.json();
             if (data.routes && data.routes[0]) {
                 const newPolylineString = data.routes[0].overview_polyline;
-                setString(newPolylineString);
                 const newLatLngs = polyline.decode(newPolylineString);
                 setDecodedPolyline(newLatLngs);
             }
-        } else {
-            console.error(
-                "Failed to fetch route:",
-                response.status,
-                response.statusText
-            );
+        } catch (error) {
+            console.error("Error fetching route:", error);
         }
     };
 
+    // Effect to fetch route when search is initiated
     useEffect(() => {
-        if (shouldFetchRoute && origin.length > 0 && Destination.length > 0) {
+        if (shouldFetchRoute && origin.length > 0 && destination.length > 0) {
             fetchRoute();
             setShouldFetchRoute(false);
         }
-    }, [shouldFetchRoute, origin, Destination]);
+    }, [shouldFetchRoute, origin, destination]);
 
+    // Effect to update map with new route data
     useEffect(() => {
         if (latlngs.length === 0) {
-            setCoordsStatus("true");
             return;
         }
 
@@ -187,15 +141,14 @@ const MapComponent = () => {
             popupAnchor: [-3, -76],
         });
 
-        if (markerRef.current) {
-            markerRef.current.remove();
-        }
-        if (polylineRef.current) {
-            polylineRef.current.remove();
-        }
+        // Remove existing marker and polyline
+        if (markerRef.current) markerRef.current.remove();
+        if (polylineRef.current) polylineRef.current.remove();
 
+        // Set view to start of route
         mapRef.current.setView(latlngs[0], 15);
 
+        // Add new marker and polyline
         markerRef.current = L.marker(latlngs[0], { icon: carIcon }).addTo(mapRef.current);
         polylineRef.current = L.polyline([latlngs[0]], { color: "blue" }).addTo(mapRef.current);
 
@@ -210,7 +163,7 @@ const MapComponent = () => {
             }
         };
 
-        const interval = setInterval(moveMarker, 1);
+        const interval = setInterval(moveMarker, 100);
 
         return () => {
             clearInterval(interval);
@@ -225,13 +178,13 @@ const MapComponent = () => {
         };
     }, [latlngs]);
 
+    // Effect to initialize map
     useEffect(() => {
         if (!mapRef.current) {
             mapRef.current = L.map("map").setView(DEFAULT_LOCATION, DEFAULT_ZOOM);
 
             L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                attribution:
-                    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
             }).addTo(mapRef.current);
         }
 
@@ -254,12 +207,19 @@ const MapComponent = () => {
                         placeholder="Origin"
                         autoComplete="off"
                         onChange={handleChange}
-                        value={displayName.origin || ''}
+                        value={displayName.origin || ""}
                     />
                     {originSuggestions.length > 0 && (
                         <ul className="suggestions">
                             {originSuggestions.map((suggestion, index) => (
-                                <li key={index} onClick={() => handleSuggestionSelect(suggestion.geometry.location, suggestion.description, true)}>
+                                <li
+                                    key={index}
+                                    onClick={() => handleSuggestionSelect(
+                                        suggestion.geometry.location,
+                                        suggestion.description,
+                                        true
+                                    )}
+                                >
                                     {suggestion.description}
                                 </li>
                             ))}
@@ -273,12 +233,19 @@ const MapComponent = () => {
                         autoComplete="off"
                         placeholder="Destination"
                         onChange={handleChange}
-                        value={displayName.destination || ''}
+                        value={displayName.destination || ""}
                     />
                     {destinationSuggestions.length > 0 && (
                         <ul className="suggestions">
                             {destinationSuggestions.map((suggestion, index) => (
-                                <li key={index} onClick={() => handleSuggestionSelect(suggestion.geometry.location, suggestion.description, false)}>
+                                <li
+                                    key={index}
+                                    onClick={() => handleSuggestionSelect(
+                                        suggestion.geometry.location,
+                                        suggestion.description,
+                                        false
+                                    )}
+                                >
                                     {suggestion.description}
                                 </li>
                             ))}
