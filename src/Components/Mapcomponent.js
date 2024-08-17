@@ -17,6 +17,8 @@ const MapComponent = () => {
     const [origin, setOrigin] = useState([]);
     const [destination, setDestination] = useState([]);
     const [displayName, setDisplayName] = useState({});
+    const [DEFAULT_LOCATION, setInitLocation] = useState([15.36457598719019, 75.10291078571753]);
+
 
     // Control flags
     const [shouldFetchRoute, setShouldFetchRoute] = useState(false);
@@ -29,7 +31,7 @@ const MapComponent = () => {
     const [destinationSuggestions, setDestinationSuggestions] = useState([]);
 
     // Constants
-    const DEFAULT_LOCATION = [15.36457598719019, 75.10291078571753];
+    // const DEFAULT_LOCATION = [15.36457598719019, 75.10291078571753];
     const DEFAULT_ZOOM = 13;
     const API_KEY = "OrCH8o2aDx0mJkv0PzgSLiPMzMAgNqyhblmHWFSa";
 
@@ -86,6 +88,32 @@ const MapComponent = () => {
         setDisplayName(newDisplayName);
 
         isOrigin ? setOriginSuggestions([]) : setDestinationSuggestions([]);
+    };
+
+
+    const updateMapView = (latitude, longitude) => {
+        if (mapRef.current) {
+            mapRef.current.setView([latitude, longitude], DEFAULT_ZOOM);
+        }
+    };
+    const GetLocation = () => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const newLocation = {
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                    };
+                    setInitLocation(newLocation);
+                    updateMapView(newLocation.latitude, newLocation.longitude);
+                },
+                (error) => {
+                    console.error('Error getting location:', error);
+                }
+            );
+        } else {
+            console.error('Geolocation is not supported by this browser.');
+        }
     };
 
     // Initiate route search
@@ -208,6 +236,25 @@ const MapComponent = () => {
             }
         };
     }, []);
+    useEffect(() => {
+        if (!mapRef.current) {
+            mapRef.current = L.map("map").setView([DEFAULT_LOCATION, DEFAULT_ZOOM]);
+
+            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+            }).addTo(mapRef.current);
+
+            // Call GetLocation to set initial location
+            GetLocation();
+        }
+
+        return () => {
+            if (mapRef.current) {
+                mapRef.current.remove();
+                mapRef.current = null;
+            }
+        };
+    }, []);
     const handleReset = () => {
         // Clear input values and display names
         setInputValues({});
@@ -230,11 +277,9 @@ const MapComponent = () => {
         setOriginSuggestions([]);
         setDestinationSuggestions([]);
 
-        // Remove marker and polyline from map
         if (markerRef.current) markerRef.current.remove();
         if (polylineRef.current) polylineRef.current.remove();
 
-        // Reset map view to default
         if (mapRef.current) {
             mapRef.current.setView(DEFAULT_LOCATION, DEFAULT_ZOOM);
         }
@@ -317,7 +362,20 @@ const MapComponent = () => {
                     </div>
 
                 )}
+
             </div>
+            <button
+                className="relocate-button"
+                onClick={GetLocation}
+                style={{
+                    position: 'absolute',
+                    bottom: '20px',
+                    right: '20px',
+                    zIndex: 1000
+                }}
+            >
+                Relocate
+            </button>
         </div>
     );
 };

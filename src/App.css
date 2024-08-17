@@ -119,6 +119,21 @@ li:hover {
   font-size: 18px;
   font-weight: 500;
 }
+.relocate-button {
+  /* padding: 10px 20px; */
+  background-color: #282c34;
+  color: white;
+  min-width: 6%;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  box-shadow: 0 0 0 0 rgb(255, 255, 255);
+}
+
+.relocate-button:hover {
+  background-color: #c0c0c0;
+  color: #282c34;
+}
 .routeDist {
   color: #ffffff;
   background-color: #282c34;
