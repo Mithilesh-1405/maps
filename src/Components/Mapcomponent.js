@@ -20,7 +20,7 @@ const MapComponent = () => {
     const [origin, setOrigin] = useState([]);
     const [destination, setDestination] = useState([]);
     const [displayName, setDisplayName] = useState({});
-    const [DEFAULT_LOCATION, setInitLocation] = useState([15.36457598719019, 75.10291078571753]);
+    const [DEFAULT_LOCATION, setInitLocation] = useState([12.973457468956516, 77.59245700264772]);
 
     // Control flags
     const [shouldFetchRoute, setShouldFetchRoute] = useState(false);
@@ -37,10 +37,13 @@ const MapComponent = () => {
     const DEFAULT_ZOOM = 13;
     const [apiKey, setApiKey] = useState('');
 
+    //Gets the api key from env file when the app loads
     useEffect(() => {
         setApiKey(process.env.REACT_APP_API_KEY);
     }, []);
 
+
+    //The slider time is set based on the slider value
     const getIntervalTime = (value) => {
         switch (value) {
             case 1: return 10;
@@ -52,6 +55,8 @@ const MapComponent = () => {
         }
     };
 
+
+    //This function fetches all the suggestion when a user types in the origin and destination input field
     const fetchSuggestions = async (input, isOrigin) => {
         const requestId = uuidv4();
         try {
@@ -75,6 +80,8 @@ const MapComponent = () => {
         }
     };
 
+
+    //This function handles the change in the input fields
     const handleChange = (e) => {
         const { name, value } = e.target;
         setInputValues(prev => ({ ...prev, [name]: value }));
@@ -87,6 +94,7 @@ const MapComponent = () => {
         }
     };
 
+    //This function handles the suggestion clicked by user and sets them to origin and destination
     const handleSuggestionSelect = (suggestion, suggestionClicked, isOrigin) => {
         const newInputValues = {
             ...inputValues,
@@ -103,11 +111,16 @@ const MapComponent = () => {
         isOrigin ? setOriginSuggestions([]) : setDestinationSuggestions([]);
     };
 
+
+    //This function updates the map view
     const updateMapView = (latitude, longitude) => {
         if (mapRef.current) {
             mapRef.current.setView([latitude, longitude], DEFAULT_ZOOM);
         }
     };
+
+
+    //Gets the current location of the user
 
     const GetLocation = () => {
         if (navigator.geolocation) {
@@ -126,6 +139,8 @@ const MapComponent = () => {
         }
     };
 
+    //Handles the logic when user clicks search
+    //Basically sets the origin and destination values(latitude and longitude) and sets the shouldFetchRoute flag to true, so that the useEffect will fetch the route
     const handleSearch = () => {
         if (inputValues.origin && inputValues.destination) {
             setOrigin(inputValues.origin);
@@ -138,11 +153,14 @@ const MapComponent = () => {
         }
     };
 
+    //when user clicks start, the car moving animation starts, and it shows the cancel button, hence allowing user to cancel the moving animation and redirect to origin
     const handleStart = () => {
         setIsMoving(true);
         setShowCancelButton(true);
     };
 
+
+    //when user clicks cancel, the car stops moving, and it shows the start button, hence allowing user to start the moving animation again
     const handleCancel = () => {
         setIsMoving(false);
         setShowStartButton(true);
@@ -154,6 +172,8 @@ const MapComponent = () => {
         if (intervalRef.current) clearInterval(intervalRef.current);
     };
 
+
+    //This function fetches the route by calling the olamaps directions api and gets all the latitude and longitudes from origin to destination
     const fetchRoute = async () => {
         const requestId = uuidv4();
 
@@ -174,7 +194,11 @@ const MapComponent = () => {
             if (data.routes && data.routes[0]) {
                 const newPolylineString = data.routes[0].overview_polyline;
                 setRouteDistance(data.routes[0].legs[0].distance);
+
+                //From the response of the directions api, we get the polyline string, which is basically encoded string of latitudes and longitudes
                 const newLatLngs = polyline.decode(newPolylineString);
+
+                //we then decode that string to get the latitudes and longitudes from origin to destination
                 setDecodedPolyline(newLatLngs);
             }
         } catch (error) {
@@ -182,6 +206,8 @@ const MapComponent = () => {
         }
     };
 
+
+    //Validation check to see if user has entered both origin and destination
     useEffect(() => {
         if (shouldFetchRoute && origin?.length > 0 && destination?.length > 0) {
             fetchRoute();
@@ -189,6 +215,8 @@ const MapComponent = () => {
         }
     }, [shouldFetchRoute, origin, destination]);
 
+
+    //This useEffect is responsible for moving the marker and polyline on the map when the user clicks start after setting origin and destination
     useEffect(() => {
         if (latlngs.length === 0) {
             return;
@@ -207,6 +235,7 @@ const MapComponent = () => {
             mapRef.current.setView(latlngs[0], 15);
         }
 
+        //Moves the marker dynamically after certain ms(milliseconds) which is set by the slider on the main page
         const moveMarker = () => {
             if (currentIndexRef.current < latlngs.length - 1 && isMoving && markerRef.current) {
                 currentIndexRef.current++;
@@ -216,6 +245,7 @@ const MapComponent = () => {
             }
         };
 
+        //Sets the interval time for the slider on the main page
         const startInterval = () => {
             if (intervalRef.current) clearInterval(intervalRef.current);
             intervalRef.current = setInterval(moveMarker, getIntervalTime(sliderValue));
@@ -230,6 +260,8 @@ const MapComponent = () => {
         };
     }, [latlngs, isMoving, sliderValue]);
 
+    //This useEffect is responsible for setting up the initial map when the app is loaded, by setting the default location and zoom
+    //It also gets the current location of the user
     useEffect(() => {
         if (!mapRef.current) {
             if (DEFAULT_LOCATION && DEFAULT_LOCATION.length === 2) {
@@ -251,6 +283,8 @@ const MapComponent = () => {
         };
     }, []);
 
+
+    //This function resets the values from origin and destination fields, so when a user wants to clear what they typed, they can click the reset button and enter the new origin and destination
     const handleReset = () => {
         // Clear input values
         setInputValues({});
@@ -265,30 +299,25 @@ const MapComponent = () => {
         setDestinationSuggestions([]);
         setRouteDistance('');
 
-        // Safely remove marker if it exists
         if (markerRef.current) {
             markerRef.current.remove();
             markerRef.current = null;
         }
 
-        // Safely remove polyline if it exists
         if (polylineRef.current) {
             polylineRef.current.remove();
             polylineRef.current = null;
         }
 
-        // Safely reset map view
         if (mapRef.current && DEFAULT_LOCATION && DEFAULT_LOCATION.length === 2) {
             mapRef.current.setView(DEFAULT_LOCATION, DEFAULT_ZOOM);
         } else {
             console.error('Invalid DEFAULT_LOCATION:', DEFAULT_LOCATION);
         }
 
-        // Clear any ongoing intervals and reset current index
         if (intervalRef.current) clearInterval(intervalRef.current);
         currentIndexRef.current = 0;
 
-        // Clear route after all operations
         setDecodedPolyline([]);
     };
 
@@ -394,14 +423,14 @@ const MapComponent = () => {
                     }}
                     className="slider"
                 />
-                <span style={{ color: 'black', fontWeight: 'bold', width: '100%' }}>Speed: {6 - sliderValue}</span>
+                <span style={{ color: 'white', fontWeight: 'bold', width: '100%' }}>Speed: {6 - sliderValue}</span>
             </div>
             <button
                 className="relocate-button"
                 onClick={GetLocation}
                 style={{
                     position: 'absolute',
-                    bottom: '20px',
+                    bottom: '50px',
                     right: '20px',
                     zIndex: 1000
                 }}

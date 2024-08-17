@@ -120,12 +120,13 @@ li:hover {
   font-weight: 500;
 }
 .relocate-button {
-  /* padding: 10px 20px; */
   background-color: #282c34;
   color: white;
-  min-width: 6%;
+  min-width: 10%;
+  min-height: 6%;
   border: none;
   border-radius: 5px;
+  font-size: 16px;
   cursor: pointer;
   box-shadow: 0 0 0 0 rgb(255, 255, 255);
 }
@@ -143,8 +144,8 @@ li:hover {
 
 .slider-container {
   position: absolute;
-  /* background-color: #282c34;
-  color: white; */
+  background-color: #282c34;
+  color: white;
   top: 2%;
   right: 5%;
   z-index: 100;
