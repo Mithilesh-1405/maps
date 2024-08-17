@@ -374,7 +374,7 @@ const MapComponent = () => {
                     zIndex: 1000
                 }}
             >
-                Relocate
+                My location
             </button>
         </div>
     );
