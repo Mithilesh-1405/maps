@@ -135,12 +135,33 @@ li:hover {
   color: #282c34;
 }
 .routeDist {
-  color: #ffffff;
-  background-color: #282c34;
-  box-shadow: 0 0 2px 1px rgb(142, 142, 142);
+  color: darkviolet;
+  text-decoration: underline;
   border-radius: 10px;
   padding: 5px;
 }
+
+.slider-container {
+  position: absolute;
+  /* background-color: #282c34;
+  color: white; */
+  top: 2%;
+  right: 5%;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+  border-radius: 10px;
+  min-width: 100px;
+}
+.slider-container input {
+  box-shadow: 0 0 0 0;
+}
+.slider {
+  width: 100%;
+  margin-right: 10px;
+}
+
 @media only screen and (max-width: 1313px) {
   .inputParams {
     flex-direction: column;

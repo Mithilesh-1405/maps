@@ -4,13 +4,17 @@ import L from "leaflet";
 import car from "../../src/images/car.png";
 import { v4 as uuidv4 } from "uuid";
 import polyline from "polyline";
+
 const MapComponent = () => {
     // Map and route related refs and state
     const mapRef = useRef(null);
     const markerRef = useRef(null);
     const polylineRef = useRef(null);
+    const intervalRef = useRef(null);
+    const currentIndexRef = useRef(0);
     const [latlngs, setDecodedPolyline] = useState([]);
-    const [routeDistance, setRouteDistance] = useState('')
+    const [routeDistance, setRouteDistance] = useState('');
+
     // Input and location state
     const [inputValues, setInputValues] = useState({});
     const [origin, setOrigin] = useState([]);
@@ -18,31 +22,39 @@ const MapComponent = () => {
     const [displayName, setDisplayName] = useState({});
     const [DEFAULT_LOCATION, setInitLocation] = useState([15.36457598719019, 75.10291078571753]);
 
-
     // Control flags
     const [shouldFetchRoute, setShouldFetchRoute] = useState(false);
     const [showCancelButton, setShowCancelButton] = useState(false);
     const [showStartButton, setShowStartButton] = useState(false);
     const [isMoving, setIsMoving] = useState(false);
+    const [sliderValue, setSliderValue] = useState(1);
 
     // Autocomplete suggestions
     const [originSuggestions, setOriginSuggestions] = useState([]);
     const [destinationSuggestions, setDestinationSuggestions] = useState([]);
 
     // Constants
-    // const DEFAULT_LOCATION = [15.36457598719019, 75.10291078571753];
     const DEFAULT_ZOOM = 13;
-    // Fetch location suggestions for autocomplete
     const [apiKey, setApiKey] = useState('');
 
     useEffect(() => {
         setApiKey(process.env.REACT_APP_API_KEY);
     }, []);
+
+    const getIntervalTime = (value) => {
+        switch (value) {
+            case 1: return 10;
+            case 2: return 50;
+            case 3: return 100;
+            case 4: return 200;
+            case 5: return 300;
+            default: return 100;
+        }
+    };
+
     const fetchSuggestions = async (input, isOrigin) => {
         const requestId = uuidv4();
-        console.log(apiKey)
         try {
-
             const response = await fetch(
                 `https://api.olamaps.io/places/v1/autocomplete?input=${input}&api_key=${apiKey}`,
                 {
@@ -63,7 +75,6 @@ const MapComponent = () => {
         }
     };
 
-    // Handle input change for origin and destination
     const handleChange = (e) => {
         const { name, value } = e.target;
         setInputValues(prev => ({ ...prev, [name]: value }));
@@ -76,7 +87,6 @@ const MapComponent = () => {
         }
     };
 
-    // Handle selection of a suggestion
     const handleSuggestionSelect = (suggestion, suggestionClicked, isOrigin) => {
         const newInputValues = {
             ...inputValues,
@@ -93,22 +103,19 @@ const MapComponent = () => {
         isOrigin ? setOriginSuggestions([]) : setDestinationSuggestions([]);
     };
 
-
     const updateMapView = (latitude, longitude) => {
         if (mapRef.current) {
             mapRef.current.setView([latitude, longitude], DEFAULT_ZOOM);
         }
     };
+
     const GetLocation = () => {
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    const newLocation = {
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude,
-                    };
+                    const newLocation = [position.coords.latitude, position.coords.longitude];
                     setInitLocation(newLocation);
-                    updateMapView(newLocation.latitude, newLocation.longitude);
+                    updateMapView(newLocation[0], newLocation[1]);
                 },
                 (error) => {
                     console.error('Error getting location:', error);
@@ -119,7 +126,6 @@ const MapComponent = () => {
         }
     };
 
-    // Initiate route search
     const handleSearch = () => {
         if (inputValues.origin && inputValues.destination) {
             setOrigin(inputValues.origin);
@@ -131,20 +137,23 @@ const MapComponent = () => {
             alert("Please enter both origin and destination!");
         }
     };
+
     const handleStart = () => {
         setIsMoving(true);
         setShowCancelButton(true);
     };
+
     const handleCancel = () => {
+        setIsMoving(false);
+        setShowStartButton(true);
         if (markerRef.current && latlngs.length > 0) {
             markerRef.current.setLatLng(latlngs[0]);
             mapRef.current.setView(latlngs[0], 15);
         }
-
-        setIsMoving(false);
-        setShowStartButton(true);
+        currentIndexRef.current = 0;
+        if (intervalRef.current) clearInterval(intervalRef.current);
     };
-    // Fetch route data from API
+
     const fetchRoute = async () => {
         const requestId = uuidv4();
 
@@ -164,7 +173,7 @@ const MapComponent = () => {
             const data = await response.json();
             if (data.routes && data.routes[0]) {
                 const newPolylineString = data.routes[0].overview_polyline;
-                setRouteDistance(data.routes[0].legs[0].distance)
+                setRouteDistance(data.routes[0].legs[0].distance);
                 const newLatLngs = polyline.decode(newPolylineString);
                 setDecodedPolyline(newLatLngs);
             }
@@ -173,7 +182,6 @@ const MapComponent = () => {
         }
     };
 
-    // Effect to fetch route when search is initiated
     useEffect(() => {
         if (shouldFetchRoute && origin?.length > 0 && destination?.length > 0) {
             fetchRoute();
@@ -181,7 +189,6 @@ const MapComponent = () => {
         }
     }, [shouldFetchRoute, origin, destination]);
 
-    // Effect to update map with new route data
     useEffect(() => {
         if (latlngs.length === 0) {
             return;
@@ -194,44 +201,48 @@ const MapComponent = () => {
             popupAnchor: [-3, -76],
         });
 
-        // Remove existing marker and polyline
-        if (markerRef.current) markerRef.current.remove();
-        if (polylineRef.current) polylineRef.current.remove();
+        if (!markerRef.current && mapRef.current) {
+            markerRef.current = L.marker(latlngs[0], { icon: carIcon }).addTo(mapRef.current);
+            polylineRef.current = L.polyline(latlngs, { color: "blue" }).addTo(mapRef.current);
+            mapRef.current.setView(latlngs[0], 15);
+        }
 
-        // Set view to start of route
-        mapRef.current.setView(latlngs[0], 15);
-
-        // Add new marker and polyline
-        markerRef.current = L.marker(latlngs[0], { icon: carIcon }).addTo(mapRef.current);
-        polylineRef.current = L.polyline(latlngs, { color: "blue" }).addTo(mapRef.current);
-
-        let index = 0;
         const moveMarker = () => {
-            if (index < latlngs.length - 1 && isMoving) {
-                index++;
-                const nextLatLng = latlngs[index];
+            if (currentIndexRef.current < latlngs.length - 1 && isMoving && markerRef.current) {
+                currentIndexRef.current++;
+                const nextLatLng = latlngs[currentIndexRef.current];
                 markerRef.current.setLatLng(nextLatLng);
                 mapRef.current.panTo(nextLatLng);
             }
         };
 
-        const interval = setInterval(moveMarker, 100);
-
-        return () => {
-            clearInterval(interval);
+        const startInterval = () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+            intervalRef.current = setInterval(moveMarker, getIntervalTime(sliderValue));
         };
-    }, [latlngs, isMoving]);
 
-    // Effect to initialize map
-    useEffect(() => {
-        if (!mapRef.current) {
-            mapRef.current = L.map("map").setView(DEFAULT_LOCATION, DEFAULT_ZOOM);
-
-            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            }).addTo(mapRef.current);
+        if (isMoving) {
+            startInterval();
         }
 
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
+    }, [latlngs, isMoving, sliderValue]);
+
+    useEffect(() => {
+        if (!mapRef.current) {
+            if (DEFAULT_LOCATION && DEFAULT_LOCATION.length === 2) {
+                mapRef.current = L.map("map").setView(DEFAULT_LOCATION, DEFAULT_ZOOM);
+                L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                }).addTo(mapRef.current);
+
+                GetLocation();
+            } else {
+                console.error('Invalid DEFAULT_LOCATION for initial map setup:', DEFAULT_LOCATION);
+            }
+        }
         return () => {
             if (mapRef.current) {
                 mapRef.current.remove();
@@ -239,54 +250,49 @@ const MapComponent = () => {
             }
         };
     }, []);
-    useEffect(() => {
-        if (!mapRef.current) {
-            mapRef.current = L.map("map").setView([DEFAULT_LOCATION, DEFAULT_ZOOM]);
 
-            L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-            }).addTo(mapRef.current);
-
-            // Call GetLocation to set initial location
-            GetLocation();
-        }
-
-        return () => {
-            if (mapRef.current) {
-                mapRef.current.remove();
-                mapRef.current = null;
-            }
-        };
-    }, []);
     const handleReset = () => {
-        // Clear input values and display names
+        // Clear input values
         setInputValues({});
         setDisplayName({});
-
-        // Clear origin and destination
         setOrigin([]);
         setDestination([]);
-
-        // Clear route
-        setDecodedPolyline([]);
-
-        // Reset control flags
         setShouldFetchRoute(false);
         setShowStartButton(false);
         setShowCancelButton(false);
         setIsMoving(false);
-
-        // Clear suggestions
         setOriginSuggestions([]);
         setDestinationSuggestions([]);
+        setRouteDistance('');
 
-        if (markerRef.current) markerRef.current.remove();
-        if (polylineRef.current) polylineRef.current.remove();
-
-        if (mapRef.current) {
-            mapRef.current.setView(DEFAULT_LOCATION, DEFAULT_ZOOM);
+        // Safely remove marker if it exists
+        if (markerRef.current) {
+            markerRef.current.remove();
+            markerRef.current = null;
         }
+
+        // Safely remove polyline if it exists
+        if (polylineRef.current) {
+            polylineRef.current.remove();
+            polylineRef.current = null;
+        }
+
+        // Safely reset map view
+        if (mapRef.current && DEFAULT_LOCATION && DEFAULT_LOCATION.length === 2) {
+            mapRef.current.setView(DEFAULT_LOCATION, DEFAULT_ZOOM);
+        } else {
+            console.error('Invalid DEFAULT_LOCATION:', DEFAULT_LOCATION);
+        }
+
+        // Clear any ongoing intervals and reset current index
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        currentIndexRef.current = 0;
+
+        // Clear route after all operations
+        setDecodedPolyline([]);
     };
+
+
     return (
         <div className="container">
             <div id="map" style={{ height: "100vh", width: "100%", zIndex: 0 }}></div>
@@ -363,9 +369,32 @@ const MapComponent = () => {
                     <div className="distance">
                         <p>Distance: <span className="routeDist">{routeDistance / 1000} km</span></p>
                     </div>
-
                 )}
-
+            </div>
+            <div className="slider-container">
+                <input
+                    type="range"
+                    min="1"
+                    max="5"
+                    value={sliderValue}
+                    onChange={(e) => {
+                        const newValue = parseInt(e.target.value);
+                        setSliderValue(newValue);
+                        if (isMoving && intervalRef.current) {
+                            clearInterval(intervalRef.current);
+                            intervalRef.current = setInterval(() => {
+                                if (currentIndexRef.current < latlngs.length - 1 && isMoving && markerRef.current) {
+                                    currentIndexRef.current++;
+                                    const nextLatLng = latlngs[currentIndexRef.current];
+                                    markerRef.current.setLatLng(nextLatLng);
+                                    mapRef.current.panTo(nextLatLng);
+                                }
+                            }, getIntervalTime(newValue));
+                        }
+                    }}
+                    className="slider"
+                />
+                <span style={{ color: 'black', fontWeight: 'bold', width: '100%' }}>Speed: {6 - sliderValue}</span>
             </div>
             <button
                 className="relocate-button"
