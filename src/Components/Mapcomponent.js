@@ -4,7 +4,6 @@ import L from "leaflet";
 import car from "../../src/images/car.png";
 import { v4 as uuidv4 } from "uuid";
 import polyline from "polyline";
-
 const MapComponent = () => {
     // Map and route related refs and state
     const mapRef = useRef(null);
@@ -33,15 +32,19 @@ const MapComponent = () => {
     // Constants
     // const DEFAULT_LOCATION = [15.36457598719019, 75.10291078571753];
     const DEFAULT_ZOOM = 13;
-    const API_KEY = "OrCH8o2aDx0mJkv0PzgSLiPMzMAgNqyhblmHWFSa";
-
     // Fetch location suggestions for autocomplete
+    const [apiKey, setApiKey] = useState('');
+
+    useEffect(() => {
+        setApiKey(process.env.REACT_APP_API_KEY);
+    }, []);
     const fetchSuggestions = async (input, isOrigin) => {
         const requestId = uuidv4();
-
+        console.log(apiKey)
         try {
+
             const response = await fetch(
-                `https://api.olamaps.io/places/v1/autocomplete?input=${input}&api_key=${API_KEY}`,
+                `https://api.olamaps.io/places/v1/autocomplete?input=${input}&api_key=${apiKey}`,
                 {
                     headers: { "X-Request-Id": requestId },
                 }
@@ -147,7 +150,7 @@ const MapComponent = () => {
 
         try {
             const response = await fetch(
-                `https://api.olamaps.io/routing/v1/directions?origin=${origin}&destination=${destination}&api_key=${API_KEY}`,
+                `https://api.olamaps.io/routing/v1/directions?origin=${origin}&destination=${destination}&api_key=${apiKey}`,
                 {
                     method: "POST",
                     headers: { "X-Request-Id": requestId },
